@@ -4,85 +4,120 @@ import java.awt.Dimension;
 import java.awt.EventQueue;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.border.EmptyBorder;
+import javax.swing.text.DefaultCaret;
+
 import java.awt.GridBagLayout;
+import java.awt.Image;
+
 import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JTextArea;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
 import javax.swing.JButton;
 import javax.swing.JTextField;
+import javax.swing.UIManager;
+import javax.swing.UnsupportedLookAndFeelException;
+
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 
-public class Client extends JFrame {
-
+public class Client {
 	private static final long serialVersionUID = 1L;
-	private JPanel contentPane;
-	private String name,address;
-	int port;
-	private JTextField txtmsg;
-	private JTextArea txtHistory;
-	public Client(String name,String address,int port) {
-		setTitle("SquirrrelChat");
-		this.address=address;
-		this.name=name;
-		this.port=port;
-		createWindow();
-		console("Attempting a connection to "+ address+ ":"+port+", user: "+name);
+
+	private DatagramSocket socket;
+
+	private String name, address;
+	private int port;
+	private InetAddress ip;
+	private Thread send;
+	private int ID=-1;
+
+	public Client(String name, String address, int port) {
+			this.name = name;
+		this.address = address;
+		this.port = port;
 	}
-	
-	private void createWindow() {
-		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setSize(910, 570);
-		Dimension minDim=new Dimension(400, 500);
-		setMinimumSize(minDim);
-		setResizable(false);
-		setLocationRelativeTo(null);
-		contentPane = new JPanel();
-		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
-		setContentPane(contentPane);
-		GridBagLayout gbl_contentPane = new GridBagLayout();
-		gbl_contentPane.columnWidths = new int[]{30,807,60,13};
-		gbl_contentPane.rowHeights = new int[]{45,475,50};
-		gbl_contentPane.columnWeights = new double[]{1.0, 1.0};
-		gbl_contentPane.rowWeights = new double[]{1.0, Double.MIN_VALUE};
-		contentPane.setLayout(gbl_contentPane);
-		
-		txtHistory = new JTextArea();
-		txtHistory.setEditable(false);
-		GridBagConstraints gbc_textArea = new GridBagConstraints();
-		gbc_textArea.gridwidth = 2;
-		gbc_textArea.insets = new Insets(0, 0, 5, 0);
-		gbc_textArea.fill = GridBagConstraints.BOTH;
-		gbc_textArea.gridx = 1;
-		gbc_textArea.gridy = 1;
-		contentPane.add(txtHistory, gbc_textArea);
-		
-		txtmsg = new JTextField();
-		GridBagConstraints gbc_txtmsg = new GridBagConstraints();
-		gbc_txtmsg.insets = new Insets(0, 0, 0, 5);
-		gbc_txtmsg.fill = GridBagConstraints.HORIZONTAL;
-		gbc_txtmsg.gridx = 1;
-		gbc_txtmsg.gridy = 2;
-		contentPane.add(txtmsg, gbc_txtmsg);
-		txtmsg.setColumns(10);
-		
-		JButton btnSend = new JButton("Send");
-		btnSend.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent arg0) {
+
+	public String getName() {
+		return name;
+	}
+
+	public String getAddress() {
+		return address;
+	}
+
+	public int getPort() {
+		return port;
+	}
+
+	public boolean openConnection(String address) {
+		try {
+			socket = new DatagramSocket();
+			ip = InetAddress.getByName(address);
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+			return false;
+		} catch (SocketException e) {
+			e.printStackTrace();
+			return false;
+		}
+		return true;
+	}
+
+	public String receive() {
+		byte[] data = new byte[1024];
+		DatagramPacket packet = new DatagramPacket(data, data.length);
+		try {
+			socket.receive(packet);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		String message=new String(packet.getData());
+		return message;
+	}
+
+	public void send(final byte[] data) {
+		send = new Thread("Send") {
+			public void run() {
+				DatagramPacket packet = new DatagramPacket(data, data.length, ip, port);
+				try {
+					socket.send(packet);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 			}
-		});
-		GridBagConstraints gbc_btnSend = new GridBagConstraints();
-		gbc_btnSend.gridwidth = 2;
-		gbc_btnSend.gridx = 2;
-		gbc_btnSend.gridy = 2;
-		contentPane.add(btnSend, gbc_btnSend);
-		setVisible(true);
-		txtmsg.requestFocusInWindow();
+		};
+		send.start();
+	}
+
+	public void close() {
+		new Thread() {
+			public void run() {
+				synchronized (socket) {
+					socket.close();
+				}
+			}
+		}.start();
+	}
+
+	public void setID(int ID) {
+		this.ID = ID;
+	}
+
+	public int getID() {
+		return ID;
 	}
 	
-	public void console(String message){
-		txtHistory.append(message+"\n\r");
-	}
 }
+
